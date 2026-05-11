@@ -8,181 +8,270 @@
 =============================================================================
 """
 
-import logging
-from abc import ABC, abstractmethod
+import logging                       # Registro de eventos y errores
+from abc import ABC, abstractmethod  # Clases y métodos abstractos
 
-# =========================
-# EXCEPCIONES
-# =========================
-class SistemaFJError(Exception):
+
+# =============================================================================
+# CONFIGURACIÓN DE LOGS
+# =============================================================================
+# Configuración general del archivo de registros.
+logging.basicConfig(
+    filename='software_fj.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    encoding='utf-8'
+)
+
+# =============================================================================
+# EXCEPCIONES PERSONALIZADAS
+# =============================================================================
+
+class SoftwareFJError(Exception):
+    """
+    Excepción base del sistema.
+
+    Permite capturar todos los errores personalizados
+    usando un único bloque except.
+    """
     pass
 
-class ValidacionError(SistemaFJError):
+class ValidacionDatoError(SoftwareFJError):
+    """
+    Error lanzado cuando un dato no cumple las validaciones.
+    """
     pass
 
-class OperacionError(SistemaFJError):
-    pass
+# =============================================================================
+# CLASE ABSTRACTA BASE: Entidad
+# =============================================================================
 
-
-# =========================
-# CLASE ABSTRACTA
-# =========================
 class Entidad(ABC):
-    def __init__(self, id):
-        if not id:
-            raise ValidacionError("ID inválido")
-        self._id = id
+    """
+    Clase abstracta base para las entidades del sistema.
+
+    Define un ID único y una representación en texto.
+    """
+
+    def __init__(self, id_entidad: str):
+        """
+        Inicializa y valida el ID de la entidad.
+        """
+        # Validar que el ID sea texto y no esté vacío
+        if not id_entidad or not isinstance(id_entidad, str):
+            raise ValidacionDatoError(
+                "El ID de la entidad no puede estar vacío."
+            )
+
+        self._id = id_entidad
 
     @property
-    def id(self):
+    def id(self) -> str:
+        """Retorna el ID de la entidad."""
         return self._id
 
     @abstractmethod
-    def mostrar(self):
+    def __str__(self) -> str:
+        """Representación en texto de la entidad."""
         pass
 
+# =============================================================================
+# CLASE CLIENTE
+# =============================================================================
 
-# =========================
-# CLIENTE (ENCAPSULADO)
-# =========================
 class Cliente(Entidad):
-    def __init__(self, id, nombre, email):
-        super().__init__(id)
+    """
+    Representa un cliente registrado en el sistema.
 
-        if len(nombre) < 3:
-            raise ValidacionError("Nombre inválido")
-        if "@" not in email:
-            raise ValidacionError("Email inválido")
+    Usa encapsulación con atributos privados.
+    """
 
+    def __init__(self, id_cliente: str, nombre: str, correo: str):
+        """
+        Inicializa y valida los datos del cliente.
+        """
+        super().__init__(id_cliente)
+
+        # Validar nombre y correo
+        if not nombre or "@" not in str(correo):
+            raise ValidacionDatoError(
+                f"Datos inválidos. Nombre: '{nombre}' | Correo: '{correo}'."
+            )
+
+        # Atributos privados
         self.__nombre = nombre
-        self.__email = email
+        self.__correo = correo
 
-    def get_nombre(self):
+    def get_nombre(self) -> str:
+        """Retorna el nombre del cliente."""
         return self.__nombre
 
-    def mostrar(self):
-        return f"{self.__nombre} ({self.id})"
+    def get_correo(self) -> str:
+        """Retorna el correo del cliente."""
+        return self.__correo
 
+    def __str__(self) -> str:
+        """Representación del cliente."""
+        return f"Cliente: {self.__nombre} (ID: {self.id})"
 
-# =========================
-# SERVICIO ABSTRACTO
-# =========================
+# =============================================================================
+# CLASE ABSTRACTA: Servicio
+# =============================================================================
+
 class Servicio(Entidad, ABC):
-    def __init__(self, id, nombre, tarifa):
-        super().__init__(id)
+    """
+    Clase abstracta base para los servicios del sistema.
+    """
 
-        if tarifa <= 0:
-            raise ValidacionError("Tarifa inválida")
+    def __init__(self, id_servicio: str, nombre: str, costo_base: float):
+        """
+        Inicializa el servicio y valida el costo base.
+        """
+        super().__init__(id_servicio)
 
-        self._nombre = nombre
-        self._tarifa = tarifa
+        # Validar costo positivo
+        if not isinstance(costo_base, (int, float)) or costo_base <= 0:
+            raise ValidacionDatoError(
+                f"Costo inválido '{costo_base}'."
+            )
+
+        self.nombre = nombre
+        self.costo_base = costo_base
 
     @abstractmethod
-    def calcular_costo(self, tiempo, **kwargs):
+    def calcular_total(self, cantidad: float, **kwargs) -> float:
+        """
+        Método abstracto para calcular el costo total.
+        """
         pass
 
-    def validar(self, tiempo):
-        if tiempo <= 0:
-            raise OperacionError("Tiempo inválido")
+    def __str__(self) -> str:
+        """Representación del servicio."""
+        return f"Servicio: {self.nombre} | Tarifa: ${self.costo_base:.2f}"
 
+# =============================================================================
+# SERVICIO: RESERVA DE SALA
+# =============================================================================
 
-# =========================
-# SERVICIOS (POLIMORFISMO)
-# =========================
-class Sala(Servicio):
-    def calcular_costo(self, horas, **kwargs):
-        self.validar(horas)
-        costo = self._tarifa * horas
-        if kwargs.get("proyector", False):
-            costo += 30
-        return costo
+class ReservaSala(Servicio):
+    """
+    Servicio de reserva de salas por horas.
+    """
 
+    def calcular_total(self, horas: float, limpieza: bool = False) -> float:
+        """
+        Calcula el costo total de la reserva.
+        """
+        # Validar horas positivas
+        if not isinstance(horas, (int, float)) or horas <= 0:
+            raise ValidacionDatoError(
+                f"Horas inválidas '{horas}'."
+            )
 
-class Equipo(Servicio):
-    def calcular_costo(self, dias, **kwargs):
-        self.validar(dias)
-        seguro = kwargs.get("seguro", True)
-        return (self._tarifa * dias) * (1.1 if seguro else 1)
+        # Agrega costo extra si incluye limpieza
+        return (self.costo_base * horas) + (35 if limpieza else 0)
 
+# =============================================================================
+# SERVICIO: ALQUILER DE EQUIPO
+# =============================================================================
 
-class Asesoria(Servicio):
-    def calcular_costo(self, sesiones, **kwargs):
-        self.validar(sesiones)
-        nivel = kwargs.get("nivel", "Junior")
-        niveles = {"Junior": 1, "Senior": 1.5, "Master": 2}
+class AlquilerEquipo(Servicio):
+    """
+    Servicio de alquiler de equipos tecnológicos.
+    """
 
-        if nivel not in niveles:
-            raise ValidacionError("Nivel inválido")
+    def calcular_total(self, dias: float, seguro: bool = True) -> float:
+        """
+        Calcula el costo total del alquiler.
+        """
+        # Validar días positivos
+        if not isinstance(dias, (int, float)) or dias <= 0:
+            raise ValidacionDatoError(
+                f"Días inválidos '{dias}'."
+            )
 
-        return (self._tarifa * sesiones) * niveles[nivel]
+        # Aplicar recargo por seguro
+        tasa = 1.12 if seguro else 1.0
 
+        return (self.costo_base * dias) * tasa
 
-# =========================
-# RESERVA
-# =========================
+# =============================================================================
+# CLASE RESERVA
+# =============================================================================
+
 class Reserva:
-    def __init__(self, id, cliente, servicio, tiempo, **kwargs):
-        if not isinstance(cliente, Cliente):
-            raise ValidacionError("Cliente inválido")
+    """
+    Representa una reserva realizada por un cliente.
+    """
 
-        if not isinstance(servicio, Servicio):
-            raise ValidacionError("Servicio inválido")
-
-        self.id = id
+    def __init__(self, id_reserva: str, cliente, servicio,
+                 duracion: float, **kwargs):
+        """
+        Inicializa la reserva y sus datos asociados.
+        """
+        self.id_reserva = id_reserva
+        self.id = id_reserva  # Compatibilidad con otros módulos
         self.cliente = cliente
         self.servicio = servicio
-        self.tiempo = tiempo
-        self.detalles = kwargs
+        self.duracion = duracion
+        self.extras = kwargs
         self.estado = "CREADA"
+        self.total = 0.0
 
-    def confirmar(self):
-        self.estado = "CONFIRMADA"
-
-    def cancelar(self):
-        self.estado = "CANCELADA"
-
-    def procesar(self):
+    def procesar(self) -> float:
+        """
+        Procesa la reserva y calcula el total.
+        """
         try:
-            total = self.servicio.calcular_costo(self.tiempo, **self.detalles)
+            # Validar cliente
+            if not isinstance(self.cliente, Cliente):
+                raise ValidacionDatoError(
+                    "Cliente inválido."
+                )
 
-        except (ValidacionError, OperacionError) as e:
+            # Validar duración positiva
+            if not isinstance(self.duracion, (int, float)) or self.duracion <= 0:
+                raise ValueError(
+                    f"Duración inválida '{self.duracion}'."
+                )
+
+            # Polimorfismo: cada servicio calcula su costo
+            self.total = self.servicio.calcular_total(
+                self.duracion,
+                **self.extras
+            )
+
+            # Reserva exitosa
+            self.estado = "CONFIRMADA"
+
+            logging.info(
+                f"Reserva '{self.id_reserva}' procesada correctamente."
+            )
+
+            print(
+                f"  ✔ Reserva {self.id_reserva} procesada | "
+                f"Cliente: {self.cliente.get_nombre()} | "
+                f"Total: ${self.total:.2f}"
+            )
+
+            return self.total
+
+        except (ValidacionDatoError, ValueError) as e:
+            # Error controlado
             self.estado = "ERROR_CONTROLADO"
-            logging.error(f"{self.id} - {e}")
-            raise SistemaFJError("Error en reserva") from e
 
-        except Exception as e:
-            self.estado = "ERROR_CRITICO"
-            logging.critical(f"{self.id} - {e}")
+            logging.error(
+                f"Error controlado en reserva '{self.id_reserva}': {e}"
+            )
+
             raise
 
-        else:
-            self.confirmar()
-            print(f"✔ Reserva {self.id}: ${total:.2f}")
-
-        finally:
-            logging.info(f"{self.id} estado final: {self.estado}")
-
-
-# =========================
-# SISTEMA
-# =========================
-class SistemaFJ:
-    def __init__(self):
-        self.clientes = []
-        self.servicios = []
-        self.reservas = []
-
-    def agregar_cliente(self, cliente):
-        self.clientes.append(cliente)
-
-    def agregar_servicio(self, servicio):
-        self.servicios.append(servicio)
-
-    def crear_reserva(self, *args, **kwargs):
-        try:
-            r = Reserva(*args, **kwargs)
-            self.reservas.append(r)
-            return r
         except Exception as e:
-            logging.error(f"Error creando reserva: {e}")
-            return None
+            # Error inesperado
+            self.estado = "ERROR_CRITICO"
+
+            logging.critical(
+                f"Error crítico en reserva '{self.id_reserva}': {e}"
+            )
+
+            raise
