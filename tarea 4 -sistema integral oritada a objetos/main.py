@@ -12,6 +12,7 @@ import logging  # Manejo de logs
 
 # Clases y excepciones del sistema
 from sistema_fj import (
+    SoftwareFJError,
     ValidacionDatoError,
     Cliente,
     ReservaSala,
