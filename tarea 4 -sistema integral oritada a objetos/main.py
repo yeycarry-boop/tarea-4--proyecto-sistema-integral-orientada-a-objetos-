@@ -12,7 +12,6 @@ import logging  # Manejo de logs
 
 # Clases y excepciones del sistema
 from sistema_fj import (
-    SoftwareFJError,
     ValidacionDatoError,
     Cliente,
     ReservaSala,
@@ -240,3 +239,4 @@ def main():
 # Ejecuta main() solo si este archivo se corre directamente.
 if __name__ == "__main__":
     main()
+    
